@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+	<title>In The Dark - An Audio Only Javascript Game</title>
+
+	<!-- Babylon.js -->
+	<script src="https://code.jquery.com/pep/0.4.2/pep.min.js">
+	</script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.2/dat.gui.min.js">
+	</script>
+	<script src="https://preview.babylonjs.com/ammo.js">
+	</script>
+	<script src="https://preview.babylonjs.com/cannon.js">
+	</script>
+	<script src="https://preview.babylonjs.com/Oimo.js">
+	</script>
+	<script src="https://preview.babylonjs.com/libktx.js">
+	</script>
+	<script src="https://preview.babylonjs.com/earcut.min.js">
+	</script>
+	<script src="https://preview.babylonjs.com/babylon.js">
+	</script>
+	<script src="https://preview.babylonjs.com/inspector/babylon.inspector.bundle.js">
+	</script>
+	<script src="https://preview.babylonjs.com/materialsLibrary/babylonjs.materials.min.js">
+	</script>
+	<script src="https://preview.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js">
+	</script>
+	<script src="https://preview.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js">
+	</script>
+	<script src="https://preview.babylonjs.com/loaders/babylonjs.loaders.js">
+	</script>
+	<script src="https://preview.babylonjs.com/serializers/babylonjs.serializers.min.js">
+	</script>
+	<script src="https://preview.babylonjs.com/gui/babylon.gui.min.js">
+	</script>
+
+	<style>
+		html,
+		body {
+			overflow: hidden;
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+
+		#renderCanvas {
+			width: 100%;
+			height: 100%;
+			touch-action: none;
+		}
+  </style>
+  
+  <script src="p5.min.js"></script>
+
+</head>
+
+<body>
+  <canvas id="renderCanvas"></canvas>
+	<script>
+//========================================================
+//Speech elements
+let u = new SpeechSynthesisUtterance();
+let z = new SpeechSynthesisUtterance();
+let g = new SpeechSynthesisUtterance();
+let v = new SpeechSynthesisUtterance();
+let c = new SpeechSynthesisUtterance();
+//Welcome speech with intructions
+function welcome(){
+    u.text = "MISSION: IN THE DARK.\n" + "\n\nBegin.";
+    u.lang = 'en-IE';
+    u.rate = 1.02;
+    u.pitch = 0.6;
+    u.onend = function(event) {}
+    speechSynthesis.speak(u);
+}
+//parameters for instructions
+function instructions(){
+    c.text = "\n\nA Global outbreak is infecting citizens.\n" +
+      "\nThe dead are among us.\n" +  "\nTo play: Listen for the enemies position.\n" + 
+      "\nScroll left & right to find them.\n" + 
+      "\nOnce the enemy is infront of you,\n" +
+      "\nDouble tap the screen to shoot.\n";
+    c.lang = 'en-IE';
+    c.rate = 1.02;
+    c.pitch = 0.6;
+    c.onend = function(event) {}
+    speechSynthesis.speak(c);
+}
+//tells user they have levelled up
+function nextLevel(){
+    z.text = "Level " + currentlevel;
+    z.lang = 'en-IE';
+    z.rate = 1.02;
+    z.pitch = 0.6;
+    z.onend = function(event) {}
+    speechSynthesis.speak(z);
+}
+//Speech for game over
+function youLost(){
+  g.text = "GAME OVER!\n" + "\nYour score was \n" + score + "\n\nTap to play again \n" + "\nor close your browser to exit.";
+  g.lang = 'en-IE';
+  g.rate = 1.02;
+  g.pitch = 0.6;
+  g.onend = function(event) {}
+  speechSynthesis.speak(g);
+}
+//Speech for victory
+function victory(){
+  v.text = "CONGRATULATIONS!\n" + "\nYOU SURVIVED THE APOCALYPSE!\n" + "\nYour score was \n" + score + "\n\nTap to play again \n" + "\nor close your browser to exit.";
+  v.lang = 'en-IE';
+  v.rate = 1.02;
+  v.pitch = 0.6;
+  v.onend = function(event) {}
+  speechSynthesis.speak(v);
+  }
+//========================================================
+  var canvas = document.getElementById("renderCanvas");
+
+      var engine = null;
+      var scene = null;
+      var createDefaultEngine = function() { return new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true }); };
+      
+      var currentDeathBox, currentEnemy, score = 0, enemyFrames = 20, currentlevel = 1;
+//========================================================    
+//Check score to level up & increase framerate of enemy
+  function levelUp(){
+    var scoreCheck = score % 13;
+    if(scoreCheck == 0){
+    enemyFrames = enemyFrames*1.15;
+    currentlevel = currentlevel + 1;
+    nextLevel();
+    console.log("lvl up" + "level: " + currentlevel + "\nenemy FPS: " + enemyFrames);
+    var gameLevelUp = new BABYLON.Sound("LevelUp", "LevelUp.wav", scene, function(){
+          console.log("Game has levelled up");
+      },{ loop: false, autoplay: true, volume: .2 } 
+      );
+      gameLevelUp.play();
+    }
+    else enemyFrames = enemyFrames;
+  }
+//========================================================
+  var createScene = function () {
+
+  class SoundSource {
+      constructor(x, y, z, name, file) {
+          //Simple crate
+          this.box = BABYLON.Mesh.CreateBox("Box1", 15, scene);
+          this.box.material = new BABYLON.StandardMaterial("Mat", scene);
+          this.box.material.diffuseTexture = new BABYLON.Texture("textures/crate.png", scene);
+          this.box.position = new BABYLON.Vector3(x, y, z);
+          this.box.checkCollisions = true;
+          
+          // Create and load the sound async
+          this.sound = new BABYLON.Sound(name, file, scene, function () {
+              console.log("Sound ready to be played!");
+          }, { loop: true, autoplay: true, spatialSound: true, distanceModel: "exponential", panningModel: "equalpower", refDistance: 3});
+          // Sound will now follow the mesh position
+          this.sound.attachToMesh(this.box);
+          //enemyFrames details the speed of the enemy
+          BABYLON.Animation.CreateAndStartAnimation("anim", this.box, "position", enemyFrames, 550, this.box.position, new BABYLON.Vector3(camera.position.x, 1, camera.position.z-30), BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+      }
+      };
+
+  // This creates a basic Babylon Scene object (non-mesh)
+  var scene = new BABYLON.Scene(engine);
+  scene.collisionsEnabled = true;
+  scene.enablePhysics(null, new BABYLON.CannonJSPlugin());
+  scene.getPhysicsEngine().setGravity(new BABYLON.Vector3(0,0,0));
+//========================================================
+    //main game theme
+    var titleTheme = new BABYLON.Sound("TitleTheme","InTheDarkTheme.wav", scene, function(){
+      console.log("Title Theme Loaded");
+      },{ loop: true, autoplay: false, volume: .1 } 
+    );
+    //gunshot sound, triggered by gun fire..
+      var shotsFired = new BABYLON.Sound("GunShot", "GunshotSound.wav", scene, function(){
+          console.log("Gunshot sound has been loaded");
+      },{ loop: false, autoplay: false, volume: 1 } 
+      );
+    //background theme sound, loop continuously in the background
+    var gameTheme = new BABYLON.Sound("ThemeBG", "InTheDarkThemeBKGround.wav", scene, function(){
+        console.log("ThemeBG sound has been loaded");
+    },{ loop: true, autoplay: true, volume: .03 } 
+    );
+    //game over theme, triggered when an enemy is too close
+    var gameOver = new BABYLON.Sound("gameOverTheme", "DeathTheme.wav", scene, function(){
+        console.log("deathTheme sound has been loaded");
+    },{ loop: false, autoplay: false, volume: .2 } 
+    );
+//======================================================== 
+    //victory sound
+    var victoryTheme = new BABYLON.Sound("VictoryTheme",    "VictoryTheme.wav", scene, function(){
+      console.log("Victory Theme Loaded");
+      },{ loop: true, autoplay: false, volume: .2 } 
+    );
+//========================================================
+    // Lights
+    var light0 = new BABYLON.DirectionalLight("Omni", new BABYLON.Vector3(-2, -5, 2), scene);
+    var light1 = new BABYLON.PointLight("Omni", new BABYLON.Vector3(0, 0, 0), scene);
+    light0.setEnabled(false);
+    light1.setEnabled(false);
+    
+    // Need a free camera for collisions
+    var camera = new BABYLON.FreeCamera("FreeCamera", new BABYLON.Vector3(0, -8, -20), scene);
+    camera.attachControl(canvas, true);
+    var cameraBox = BABYLON.Mesh.CreateBox("CameraBox", 1, scene);
+    cameraBox.parent = camera;
+    cameraBox.checkCollision = true;
+
+    //Ground
+    var ground = BABYLON.Mesh.CreatePlane("ground", 400.0, scene);
+    ground.material = new BABYLON.StandardMaterial("groundMat", scene);
+    ground.material.diffuseColor = new BABYLON.Color3(0, 0, 0);
+    ground.material.backFaceCulling = false;
+    ground.position = new BABYLON.Vector3(5, 0, -15);
+    ground.rotation = new BABYLON.Vector3(Math.PI / 2, 0, 0);     
+    //Sky
+    var skyMaterial = new BABYLON.SkyMaterial("skyMaterial", scene);
+    skyMaterial.backFaceCulling = false;
+    var skybox = BABYLON.Mesh.CreateBox("skyBox", 1000.0, scene);
+    skybox.material = skyMaterial; 
+    skyMaterial.luminance = 0;
+//========================================================  
+// welcome message, repeats on starting a new game to alert user
+    welcome();
+//creates initial enemy
+    createEnemy();     
+//========================================================   
+  function fireDeathBox()
+  {
+      if(currentDeathBox !=null)
+          currentDeathBox.dispose();
+
+      var box = BABYLON.Mesh.CreateBox("Box1", 6 , scene);   
+      var impulseMagnitude = 80;
+      // box.checkCollisions = true;
+      var impulseDirection = camera.getTarget();
+      console.log(impulseDirection);
+      box.position = new BABYLON.Vector3(camera.position.x, camera.position.y, camera.position.z);
+      box.physicsImpostor = new BABYLON.PhysicsImpostor(box, BABYLON.PhysicsImpostor.BoxImpostor, { mass: 2, friction: 0.0, restitution: 0.3 }, scene);
+      var direction = camera.getFrontPosition(1).subtract(camera.position).normalize();
+      box.physicsImpostor.applyImpulse(direction.scale(impulseMagnitude), box.getAbsolutePosition());
+
+      currentDeathBox = box;           
+  }
+
+  function createEnemy(){
+      if(currentEnemy!=null){
+          delete currentEnemy;
+      }
+      //randomly selects which soundfile to play   
+      let soundFiles = [];
+      soundFiles.push("Zombie1.wav");
+      soundFiles.push("Zombie2.wav");
+      soundFiles.push("Zombie3.wav");
+      soundFiles.push("Zombie4.wav");
+      soundFiles.push("Zombie5.wav");
+      soundFiles.push("Zombie6.wav");
+      soundFiles.push("Zombie7.wav");
+      soundFiles.push("Zombie8.wav");
+      soundFiles.push("Zombie9.wav");
+      soundFiles.push("Zombie10.wav");
+      soundFiles.push("Zombie11.wav");
+      soundFiles.push("ZombieVoicing01.wav");
+      soundFiles.push("ZombieVoicing02.wav");
+      soundFiles.push("ZombieVoicing03.wav");
+      soundFiles.push("ZombieVoicing04.wav");
+      soundFiles.push("ZombieVoicing05.wav");
+      soundFiles.push("ZombieVoicing06.wav");
+      soundFiles.push("ZombieVoicing07.wav");
+      
+      var soundToPlay = soundFiles[Math.floor((Math.random()*soundFiles.length))];
+      currentEnemy = new SoundSource(Math.random()*50-25, 1, -10, 'enemy', soundToPlay);
+      currentEnemy.sound.setVolume(4);
+  }
+//========================================================
+  //replace successful shot sound each time **sounds overlap -> create render delay
+  function shotIsGood(){
+    if(goodShot != null){
+      delete goodShot;
+    }
+    //array for which sound to be played
+    var soundChoice = [0, 1];
+    var successfulShotSound = soundChoice[Math.floor((Math.random()*soundChoice.length))];
+
+    switch(successfulShotSound){
+      //Play a hit sound so user knows shot was successful
+      //Commander voice sounds  
+      case 0:
+      let hitCmd = new SpeechSynthesisUtterance();
+      var phrases = ["Direct Hit!", "Good Shot!", "Keep Going", "Enemy Compromised.", "Good Work, Agent.", 
+      "Stay focused", "Shot was Successful.", "On Target.", "Target Neutralised", "Agent, Adjust.", "Advance!", 
+      "Attack!", "Another Approaching!"];
+      var textToPlay = phrases[Math.floor((Math.random()*phrases.length))];
+      hitCmd.text = textToPlay;
+      hitCmd.lang = 'en-IE';
+      hitCmd.rate = 1.02;
+      hitCmd.pitch = 0.6;
+      hitCmd.onend = function(event) {}
+      speechSynthesis.speak(hitCmd);
+      break;
+
+      //Array of character voice sounds
+      case 1:
+      let hitSoundFiles = [];
+      hitSoundFiles.push("ZombieHit1.wav");
+      hitSoundFiles.push("ZombieHit2.wav");
+      hitSoundFiles.push("ZombieHit3.wav");
+      hitSoundFiles.push("ZombieHit4.wav");
+      hitSoundFiles.push("ZombieHit5.wav");
+      hitSoundFiles.push("ZombieHit6.wav");
+      hitSoundFiles.push("ZombieHit7.wav");
+      hitSoundFiles.push("ZombieHit8.wav");
+      hitSoundFiles.push("ZombieHit9.wav");
+      hitSoundFiles.push("ZombieHit10.wav");
+
+      var hitSoundToPlay = hitSoundFiles[Math.floor((Math.random()*hitSoundFiles.length))];
+      var goodShot = new BABYLON.Sound("ZombieHitGood", hitSoundToPlay, scene, function(){
+      console.log("successful shot sound has been loaded");
+      },{ loop: false, autoplay: true, volume: .4 } 
+      );
+      break;
+    }  
+  }
+//========================================================
+//Functions for end of game to kill unneeded sounds and offer user restart option
+function gameEndSounds(){
+    //mute other sounds
+    gameTheme.stop(0);
+    currentEnemy.sound.setVolume(0);
+    currentEnemy.box.dispose();
+    if(currentDeathBox != null){
+      currentDeathBox.dispose();
+    }
+}
+//Give user the option to play again
+function userReplay(){
+  //display image over end screen
+  var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+  var image = new BABYLON.GUI.Image("ITD", "InTheDark3.png");
+  image.width = 0.8;
+  image.height = "1200px";
+  advancedTexture.addControl(image);  
+  //user command to restart game
+  scene.onPointerObservable.add((pointerInfo) => {
+    if(BABYLON.PointerEventTypes.POINTERTAP){
+      location.reload();
+    }
+  });
+}
+//========================================================
+  //key down callback
+  window.addEventListener("keydown", onKeyDown, false);
+  function onKeyDown(event) {
+          if (event.keyCode == 32){
+              fireDeathBox();
+          }
+          else if(event.keyCode == 49){
+          }
+  }   
+  //Set gravity for the scene (G force like, on Y-axis)
+  scene.gravity = new BABYLON.Vector3(0, -0.9, 0);  
+  // Enable Collisions
+  scene.collisionsEnabled = true;        
+  //Then apply collisions and gravity to the active camera
+  camera.checkCollisions = true;
+  camera.applyGravity = true;        
+  //Set the ellipsoid around the camera (e.g. your player's size)
+  camera.ellipsoid = new BABYLON.Vector3(1, 1, 1);  
+  camera.position = new BABYLON.Vector3(0, 1, -50);
+  //finally, say which mesh will be collisionable
+  ground.checkCollisions = true;        
+  var alpha = 0;         
+  scene.registerBeforeRender(function () {
+      camera.rotation.x = 0;
+  });       
+  var gameIsOver = false;
+//========mute box once collision has occurred========
+scene.onBeforeRenderObservable.add(()=>{
+  if(currentEnemy.box.absolutePosition.x != 0 &&
+  currentEnemy.box.absolutePosition.z != 0){
+  if((BABYLON.Vector3.Distance(currentEnemy.box.absolutePosition, cameraBox.absolutePosition) < 10) && (gameIsOver == false)){
+        console.log("agghhhh zombies!!!");
+        gameOver.play();
+        //play title theme until user makes decision to replay or quit
+        titleTheme.play(8.5);
+        gameIsOver = true;
+        gameEndSounds();
+        youLost();
+        setTimeout(function(){userReplay()}, 9000);
+    }
+  }
+
+  if(currentDeathBox!=null && currentEnemy!=null){
+    if(currentDeathBox.intersectsMesh(currentEnemy.box)) {
+      currentEnemy.sound.setVolume(0);
+      currentEnemy.box.dispose();
+      currentDeathBox.dispose();
+      //Keep track of the Users score
+      score = score + 1;
+      console.log("Score: " + score);
+      //victory score for user
+      if(score == 92){
+        !createEnemy();
+        victoryTheme.play();
+        gameIsOver = true;
+        gameEndSounds();
+        victory();
+        setTimeout(function(){userReplay()}, 10000);
+      } else{
+        //Play goodShot
+        shotIsGood();
+        levelUp();
+        console.log("Enemy FPS: " + enemyFrames);
+        createEnemy();
+      }                 
+    }
+  }
+}) 
+  
+  scene.onPointerObservable.add((pointerInfo) => {
+  switch (pointerInfo.type) {
+      case BABYLON.PointerEventTypes.POINTERDOWN:
+          console.log("POINTER DOWN");
+          break;
+      case BABYLON.PointerEventTypes.POINTERUP:
+          console.log("POINTER UP");
+          break;
+      case BABYLON.PointerEventTypes.POINTERMOVE:
+          console.log("POINTER MOVE");
+          break;
+      case BABYLON.PointerEventTypes.POINTERWHEEL:
+          console.log("POINTER WHEEL");
+          break;
+      case BABYLON.PointerEventTypes.POINTERPICK:
+          console.log("POINTER PICK");
+          break;
+      case BABYLON.PointerEventTypes.POINTERTAP:
+          console.log("POINTER TAP");
+          break;
+      case BABYLON.PointerEventTypes.POINTERDOUBLETAP:
+          fireDeathBox();
+          shotsFired.play();
+          break;
+  }
+});
+  // GUI for button
+  var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+  var button = BABYLON.GUI.Button.CreateImageButton("but", "MISSION BRIEF", "zomarm.png");
+  button.width = 0.2;
+  button.height = "50px";
+  button.color = "white";
+  button.background = "grey";
+  button.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+  advancedTexture.addControl(button); 
+
+  button.onPointerClickObservable.add(function(){instructions();});
+
+  return scene;
+};
+
+engine = createDefaultEngine();
+if (!engine) throw 'engine should not be null.';
+scene = createScene();
+
+engine.runRenderLoop(function () {
+  if (scene) {
+      scene.render();
+  }
+});
+
+// Resize
+window.addEventListener("resize", function () {
+  engine.resize();
+});
+  </script>
+  <script src="script.js"></script>
+</body>
+</html>
