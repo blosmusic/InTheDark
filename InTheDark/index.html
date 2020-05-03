@@ -449,17 +449,28 @@ scene.onBeforeRenderObservable.add(()=>{
           break;
   }
 });
-  // GUI for button
+  // GUIs
+  //Mission brief button for game instructions
   var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
   var button = BABYLON.GUI.Button.CreateImageButton("but", "MISSION BRIEF", "zomarm.png");
-  button.width = 0.2;
-  button.height = "50px";
+  button.width = 0.3;
+  button.height = "70px";
   button.color = "white";
   button.background = "grey";
-  button.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+  button.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
   advancedTexture.addControl(button); 
-
   button.onPointerClickObservable.add(function(){instructions();});
+
+  //Enable Commander button to initialise voice synthesis(needed for some mobile browsers)
+  var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+  var buttonVox = BABYLON.GUI.Button.CreateImageButton("butVox", "ENABLE COMMANDER", "zomarm.png");
+  buttonVox.width = 0.3;
+  buttonVox.height = "70px";
+  buttonVox.color = "white";
+  buttonVox.background = "grey";
+  buttonVox.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+  advancedTexture.addControl(buttonVox); 
+  buttonVox.onPointerClickObservable.add(function(){welcome();});
 
   return scene;
 };
